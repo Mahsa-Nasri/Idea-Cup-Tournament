@@ -1,0 +1,127 @@
+/*****************************************************
+This program was produced by the
+Project : 
+Version : 
+Date    : 02/17/2020
+Chip type           : ATmega16L
+Program type        : Application
+Clock frequency     : 12.000000 MHz
+*****************************************************/
+//  notes:
+#include <mega16.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <delay.h>
+#include <ab ban.h>
+
+interrupt [TIM0_OVF] void timer0_ovf_isr(void)
+{
+  count1++;
+  count2++;
+  // enable sensors
+  sensor0middle=(sensor0middle+sensor0);
+  sensor1middle=(sensor1middle+sensor1);
+  sensor2middle=(sensor2middle+sensor2);
+  
+  if (count1>50)
+
+    { 
+    //callibrate the data from sensors
+      sensor0middle=(sensor0middle/50);
+      sensor1middle=(sensor1middle/50);
+      sensor2middle=(sensor2middle/50);
+      sum=(sensor0middle+sensor1middle+sensor2middle);
+      if ((sum>10)&&(sum<980))
+         green=1,yellow=0,red=0,cut=0;
+      if ((sum>1010)&&(sum<1225))
+         green=0,yellow=1,red=0,cut=0; 
+      if (sum>1240)
+         green=0,yellow=0,red=1,cut=0;
+      count1=0;
+      if ((sensor0middle>950)||(sensor0middle<50))  
+        green=0,yellow=0,red=0,cut=1; 
+      if ((sensor1middle>950)||(sensor1middle<50))  
+        green=0,yellow=0,red=0,cut=1; 
+      if ((sensor2middle>950)||(sensor2middle<50))  
+        green=0,yellow=0,red=0,cut=1; 
+    }  
+    
+  if (count2>200)
+    {
+       if (cut==1)
+         {
+           nn++;
+           if (nn==2)
+              nn=0,red=1;
+           else
+              red=0;   
+         }
+      count2=0;
+    }
+}
+#define FIRST_ADC_INPUT 0
+#define LAST_ADC_INPUT 2
+unsigned int adc_data[LAST_ADC_INPUT-FIRST_ADC_INPUT+1];
+#define ADC_VREF_TYPE 0x40
+
+// ADC interrupt service routine        with auto input scanning
+interrupt [ADC_INT] void adc_isr(void)
+{
+static unsigned char input_index=0;
+// Read the AD conversion result
+adc_data[input_index]=ADCW;
+// Select next ADC input
+if (++input_index > (LAST_ADC_INPUT-FIRST_ADC_INPUT))
+   input_index=0;
+ADMUX=(FIRST_ADC_INPUT | (ADC_VREF_TYPE & 0xff))+input_index;
+// Delay needed for the stabilization of the ADC input voltage
+delay_us(10);
+// Start the AD conversion
+sensor0=adc_data[0];
+sensor1=adc_data[1];
+sensor2=adc_data[2];
+ADCSRA|=0x40;
+
+}
+
+void main(void)
+{
+// Port A initialization     Func7=Out Func6=Out Func5=Out Func4=Out Func3=In Func2=In Func1=In Func0=In 
+PORTA=0x00,DDRA=0xF0;
+
+// Port B initialization     Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
+PORTB=0x00,DDRB=0x00;
+
+// Port C initialization     Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
+PORTC=0x00,DDRC=0x00;
+
+// Port D initialization     Func7=In Func6=In Func5=In Func4=In Func3=In Func2=In Func1=In Func0=In 
+PORTD=0x00,DDRD=0x00;
+
+// Timer/Counter 0 initialization    Clock source: System Clock    Clock value: 11.719 kHz
+TCCR0=0x05,TCNT0=0x00,OCR0=0x00;
+
+// Timer/Counter 1 initialization   Clock source: System Clock     Clock value: Timer 1 Stopped
+// Mode: Normal top=FFFFh  OC1A output: Discon.  OC1B output: Discon.      Noise Canceler: Off
+TCCR1A=0x00,TCCR1B=0x00,TCNT1H=0x00,TCNT1L=0x00,ICR1H=0x00,ICR1L=0x00;
+OCR1AH=0x00,OCR1AL=0x00,OCR1BH=0x00,OCR1BL=0x00;
+
+// Timer/Counter 2 initialization   Clock source: System Clock   Clock value: Timer 2 Stopped
+ASSR=0x00,TCCR2=0x00,TCNT2=0x00,OCR2=0x00;
+
+// External Interrupt(s) initialization  INT0: Off     INT1: Off     INT2: Off
+MCUCR=0x00,MCUCSR=0x00;
+
+// Timer(s)/Counter(s) Interrupt(s) initialization
+TIMSK=0x01;
+
+// Analog Comparator initialization   Analog Comparator: Off    Analog Comparator Input Capture by Timer/Counter 1: Off
+ACSR=0x80,SFIOR=0x00;
+
+// ADC initialization    ADC Clock frequency: 93.750 kHz   ADC Voltage Reference: AVCC pin
+ADMUX=FIRST_ADC_INPUT | (ADC_VREF_TYPE & 0xff),ADCSRA=0xCF;
+
+#asm("sei")
+
+
+}
